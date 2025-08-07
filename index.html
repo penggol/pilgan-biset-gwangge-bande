@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soal Pilihan Ganda (Impor ZIP)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- JSZip CDN for handling ZIP files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <style>
+        /* Custom font for a cleaner look */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for a better aesthetic */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Style for correct/incorrect answers in results review */
+        .correct-answer {
+            background-color: #d1fae5; /* Green light */
+            border-left: 4px solid #10b981; /* Green */
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+        }
+        .incorrect-answer {
+            background-color: #fee2e2; /* Red light */
+            border-left: 4px solid #ef4444; /* Red */
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+        }
+        /* Style for revealed translations */
+        .revealed-translation {
+            display: inline !important;
+        }
+        /* Styles for immediate feedback on question page */
+        .correct-feedback {
+            background-color: #d1fae5; /* Green light background */
+            color: #10b981; /* Tailwind green-600 */
+            font-weight: bold;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+        }
+        .incorrect-feedback {
+            background-color: #fee2e2; /* Red light background */
+            color: #ef4444; /* Tailwind red-500 */
+            font-weight: bold;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center py-10 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-2xl w-full space-y-8 bg-white p-8 rounded-lg shadow-xl">
+        <h1 class="text-4xl font-extrabold text-gray-900 text-center mb-10">Soal Pilihan Ganda (Impor ZIP)</h1>
+
+        <!-- Initial Screen for Importing Questions -->
+        <div id="initial-screen" class="flex flex-col items-center justify-center p-8 space-y-6">
+            <p class="text-xl text-gray-700 text-center">Silakan impor file ZIP yang berisi file JSON soal Anda.</p>
+            <input type="file" id="zipFile" accept=".zip" class="block w-full text-lg text-gray-700
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-lg file:font-semibold
+                file:bg-blue-50 file:text-blue-700
+                hover:file:bg-blue-100 cursor-pointer"/>
+            <button id="loadZipBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-300 ease-in-out text-lg">
+                Impor File ZIP
+            </button>
+            <p id="import-status" class="text-red-500 text-base mt-2" style="display: none;"></p>
+
+            <!-- Package Selection Section -->
+            <div id="package-selection-section" class="w-full mt-8" style="display: none;">
+                <h2 class="text-2xl font-bold text-gray-900 text-center mb-4">Pilih Paket Soal</h2>
+                <div id="package-list" class="space-y-2 max-h-60 overflow-y-auto p-2 bg-gray-100 rounded-md">
+                    <!-- Package buttons will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Quiz Configuration Section -->
+            <div id="quiz-config-section" class="w-full space-y-4" style="display: none;">
+                <p id="total-questions-info" class="text-lg text-gray-600 mt-4 text-center"></p>
+                <p class="text-lg text-gray-700 text-center">Pilih rentang soal yang ingin dikerjakan:</p>
+                <div class="flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <label for="startRange" class="text-lg text-gray-700">Mulai dari:</label>
+                        <input type="number" id="startRange" min="1" value="1" class="w-24 p-2 border border-gray-300 rounded-md text-lg text-center"/>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label for="endRange" class="text-lg text-gray-700">Sampai:</label>
+                        <input type="number" id="endRange" min="1" class="w-24 p-2 border border-gray-300 rounded-md text-lg text-center"/>
+                    </div>
+                </div>
+                <button id="startQuizBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-300 ease-in-out text-lg w-full">
+                    Mulai Kuis
+                </button>
+            </div>
+        </div>
+
+        <!-- Quiz Container (Initially Hidden) -->
+        <div id="quiz-container" style="display: none;">
+            <!-- Progress Bar -->
+            <div class="w-full bg-gray-200 rounded-full h-4 mb-6">
+                <div id="progressBar" class="bg-blue-500 h-4 rounded-full transition-all duration-300 ease-in-out" style="width: 0%;"></div>
+            </div>
+            <p id="question-counter" class="text-lg text-gray-700 text-center mb-6">Soal <span id="current-q-num">1</span> dari <span id="total-q-num">X</span></p>
+
+            <!-- Container for dynamically loaded questions -->
+            <div id="quiz-questions-container">
+                <!-- Questions will be inserted here by JavaScript -->
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="flex justify-end mt-8">
+                <button id="answerBtn" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out text-lg">
+                    Jawab
+                </button>
+                <button id="nextBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out text-lg ml-4" style="display: none;">
+                    Berikutnya
+                </button>
+                <button id="submitBtn" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out text-lg ml-4" style="display: none;">
+                    Selesai
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="mt-8 p-6 bg-gray-50 rounded-lg shadow-md" style="display: none;">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Hasil Kuis Anda</h2>
+            <p id="score" class="text-xl font-semibold text-gray-700 mb-4"></p>
+            <div id="answers-review" class="space-y-4"></div>
+            
+            <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4 mt-6">
+                <button id="repeatIncorrectBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out text-lg">
+                    Ulangi Soal yang Salah
+                </button>
+                <button id="backToHomeBtn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out text-lg">
+                    Kembali ke Halaman Awal
+                </button>
+            </div>
+            <button id="restartAllBtn" class="mt-6 bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out text-lg w-full">
+                Mulai Ulang Kuis (Paket Ini)
+            </button>
+
+            <!-- New Section for Frequently Missed Questions -->
+            <div id="frequently-missed" class="mt-8 p-6 bg-red-50 rounded-lg shadow-inner" style="display: none;">
+                <h3 class="text-xl font-bold text-red-800 mb-4">Soal Paling Sering Salah</h3>
+                <ul id="frequently-missed-list" class="space-y-2 text-red-700"></ul>
+                <button id="repeatFrequentlyMissedBtn" class="mt-4 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out text-lg w-full">
+                    Ulangi Soal yang Sering Salah
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal for 'Silakan pilih jawaban' -->
+        <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full" style="display: none;">
+            <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <div class="mt-3 text-center">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900">Perhatian</h3>
+                    <div class="mt-2 px-7 py-3">
+                        <p id="modal-message" class="text-sm text-gray-500">Silakan pilih jawaban terlebih dahulu.</p>
+                    </div>
+                    <div class="items-center px-4 py-3">
+                        <button id="modal-close-btn" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            Tutup
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables for quiz data and state
+        let quizPackages = {}; // Stores all packages from the ZIP file
+        let currentPackageName = null;
+        let fullQuizData = []; // Data for the currently selected package
+        let activeQuizData = []; // Current quiz data for the session
+        let questions; // DOM elements for the questions
+        let currentQuestionIndex = 0;
+        const userAnswers = {}; // Store user answers
+
+        // UI Element selectors
+        const initialScreen = document.getElementById('initial-screen');
+        const quizContainer = document.getElementById('quiz-container');
+        const zipFileInput = document.getElementById('zipFile');
+        const loadZipBtn = document.getElementById('loadZipBtn');
+        const startQuizBtn = document.getElementById('startQuizBtn');
+        const importStatus = document.getElementById('import-status');
+        const packageSelectionSection = document.getElementById('package-selection-section');
+        const packageList = document.getElementById('package-list');
+        const quizConfigSection = document.getElementById('quiz-config-section');
+        const totalQuestionsInfo = document.getElementById('total-questions-info');
+        const startRangeInput = document.getElementById('startRange');
+        const endRangeInput = document.getElementById('endRange');
+
+        const answerBtn = document.getElementById('answerBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const resultsSection = document.getElementById('results');
+        const scoreDisplay = document.getElementById('score');
+        const answersReview = document.getElementById('answers-review');
+        const quizQuestionsContainer = document.getElementById('quiz-questions-container');
+        const progressBar = document.getElementById('progressBar');
+        const currentQNum = document.getElementById('current-q-num');
+        const totalQNum = document.getElementById('total-q-num');
+        const modal = document.getElementById('modal');
+        const modalMessage = document.getElementById('modal-message');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        // New buttons and elements for results section
+        const repeatIncorrectBtn = document.getElementById('repeatIncorrectBtn');
+        const backToHomeBtn = document.getElementById('backToHomeBtn');
+        const restartAllBtn = document.getElementById('restartAllBtn');
+        const frequentlyMissedSection = document.getElementById('frequently-missed');
+        const frequentlyMissedList = document.getElementById('frequently-missed-list');
+        const repeatFrequentlyMissedBtn = document.getElementById('repeatFrequentlyMissedBtn');
+
+        /**
+         * Shuffles an array using the Fisher-Yates algorithm.
+         * @param {Array} array - The array to shuffle.
+         */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        /**
+         * Renders all questions dynamically from the activeQuizData.
+         */
+        function renderQuestions() {
+            quizQuestionsContainer.innerHTML = '';
+            activeQuizData.forEach((qData, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.id = `question-${qData.id}`;
+                questionDiv.classList.add('question-container', 'p-6', 'rounded-lg', 'shadow-md', 'bg-blue-50', 'mb-6');
+                
+                const questionTextP = document.createElement('p');
+                questionTextP.classList.add('question-text', 'text-xl', 'font-semibold', 'text-gray-800', 'mb-4');
+                const cleanQuestionText = qData.question.replace(/^\d+\.\s*/, '');
+                questionTextP.textContent = `${index + 1}. ${cleanQuestionText}`;
+                questionDiv.appendChild(questionTextP);
+
+                const wordP = document.createElement('p');
+                wordP.classList.add('text-2xl', 'font-bold', 'text-gray-800', 'mb-6', 'text-center');
+                if (qData.words && Array.isArray(qData.words)) {
+                    const combinedWords = qData.words.map((word, i) =>
+                        `<span class="korean-word">${word}</span> <span id="${qData.id}-translation-${i}" class="word-translation text-lg font-normal text-gray-500 ml-2" style="display: none;">(${qData.words_translation[i]})</span>`
+                    ).join(', ');
+                    wordP.innerHTML = combinedWords;
+                } else if (qData.word) {
+                    wordP.innerHTML = `<span class="korean-word">${qData.word}</span> <span id="${qData.id}-translation" class="word-translation text-lg font-normal text-gray-500 ml-2" style="display: none;">(${qData.word_translation})</span>`;
+                }
+                questionDiv.appendChild(wordP);
+
+                const optionsDiv = document.createElement('div');
+                optionsDiv.classList.add('options', 'space-y-3');
+
+                const shuffledOptions = [...qData.options];
+                shuffleArray(shuffledOptions);
+
+                shuffledOptions.forEach(option => {
+                    const optionWrapper = document.createElement('div');
+                    optionWrapper.classList.add('flex', 'items-center', 'cursor-pointer', 'p-3', 'bg-white', 'rounded-md', 'shadow-sm', 'hover:bg-gray-50', 'transition', 'duration-200');
+
+                    const input = document.createElement('input');
+                    input.type = 'radio';
+                    input.id = `${qData.id}o${option.value}`;
+                    input.name = qData.id;
+                    input.value = option.value;
+                    input.classList.add('h-5', 'w-5', 'text-blue-600', 'focus:ring-blue-500', 'border-gray-300', 'rounded', 'cursor-pointer');
+                    input.addEventListener('change', (event) => {
+                        userAnswers[qData.id] = event.target.value;
+                        document.querySelectorAll(`#question-${qData.id} .correct-feedback, #question-${qData.id} .incorrect-feedback`).forEach(el => {
+                            el.classList.remove('correct-feedback', 'incorrect-feedback');
+                        });
+                        document.querySelectorAll(`#question-${qData.id} .revealed-translation`).forEach(span => {
+                            span.classList.remove('revealed-translation');
+                        });
+                        answerBtn.style.display = 'inline-block';
+                        nextBtn.style.display = 'none';
+                        submitBtn.style.display = 'none';
+                    });
+                    optionWrapper.appendChild(input);
+
+                    const label = document.createElement('label');
+                    label.htmlFor = `${qData.id}o${option.value}`;
+                    label.classList.add('ml-3', 'text-lg', 'text-gray-700', 'flex-grow', 'cursor-pointer');
+                    label.innerHTML = `${option.text} <span id="${qData.id}o${option.value}-translation" class="option-translation text-base font-normal text-gray-500 ml-1" style="display: none;">(${option.translation})</span>`;
+                    optionWrapper.appendChild(label);
+                    
+                    optionsDiv.appendChild(optionWrapper);
+                });
+                questionDiv.appendChild(optionsDiv);
+                quizQuestionsContainer.appendChild(questionDiv);
+            });
+        }
+
+        /**
+         * Displays a specific question and updates UI elements.
+         * @param {number} index - The index of the question to display.
+         */
+        function showQuestion(index) {
+            questions.forEach(q => q.style.display = 'none');
+            questions[index].style.display = 'block';
+
+            answerBtn.style.display = 'inline-block';
+            nextBtn.style.display = 'none';
+            submitBtn.style.display = 'none';
+
+            const currentQuestionData = activeQuizData[index];
+            document.querySelectorAll(`#question-${currentQuestionData.id} .revealed-translation`).forEach(span => {
+                span.classList.remove('revealed-translation');
+            });
+            document.querySelectorAll(`#question-${currentQuestionData.id} .correct-feedback, #question-${currentQuestionData.id} .incorrect-feedback`).forEach(el => {
+                el.classList.remove('correct-feedback', 'incorrect-feedback');
+            });
+
+            updateProgressBar();
+            currentQNum.textContent = index + 1;
+            totalQNum.textContent = activeQuizData.length;
+        }
+
+        /**
+         * Updates the progress bar based on the current question index.
+         */
+        function updateProgressBar() {
+            const progress = ((currentQuestionIndex + 1) / activeQuizData.length) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+
+        /**
+         * Shows a custom modal with a message.
+         * @param {string} message - The message to display in the modal.
+         */
+        function showModal(message) {
+            modalMessage.textContent = message;
+            modal.style.display = 'block';
+        }
+
+        /**
+         * Hides the custom modal.
+         */
+        function hideModal() {
+            modal.style.display = 'none';
+        }
+
+        /**
+         * Updates the persistent list of frequently missed questions for the current package.
+         * @param {string} questionId - The ID of the question that was answered incorrectly.
+         */
+        function updateFrequentlyMissed(questionId) {
+            const storageKey = `frequentlyMissed_${currentPackageName}`;
+            let frequentlyMissed = JSON.parse(localStorage.getItem(storageKey)) || {};
+            frequentlyMissed[questionId] = (frequentlyMissed[questionId] || 0) + 1;
+            localStorage.setItem(storageKey, JSON.stringify(frequentlyMissed));
+        }
+
+        /**
+         * Renders the list of frequently missed questions for the current package on the results page.
+         */
+        function renderFrequentlyMissedList() {
+            const storageKey = `frequentlyMissed_${currentPackageName}`;
+            const frequentlyMissed = JSON.parse(localStorage.getItem(storageKey)) || {};
+            const missedQuestionsArray = Object.entries(frequentlyMissed).map(([id, count]) => {
+                const questionData = fullQuizData.find(q => q.id === id);
+                return {
+                    id,
+                    count,
+                    questionText: questionData ? questionData.question : 'Soal tidak ditemukan'
+                };
+            }).sort((a, b) => b.count - a.count); // Sort by count, descending
+
+            frequentlyMissedList.innerHTML = '';
+            if (missedQuestionsArray.length > 0) {
+                frequentlyMissedSection.style.display = 'block';
+                missedQuestionsArray.forEach(q => {
+                    const li = document.createElement('li');
+                    li.classList.add('p-2', 'bg-red-100', 'rounded-md');
+                    li.textContent = `${q.questionText} (${q.count} kali salah)`;
+                    frequentlyMissedList.appendChild(li);
+                });
+            } else {
+                frequentlyMissedSection.style.display = 'none';
+            }
+        }
+        
+        /**
+         * Handles the answer submission for the current question.
+         * @param {boolean} isReviewMode - If true, skip validation and button changes.
+         */
+        function answerQuestion(isReviewMode = false) {
+            const currentQuestionData = activeQuizData[currentQuestionIndex];
+            const selectedOption = document.querySelector(`input[name="${currentQuestionData.id}"]:checked`);
+
+            if (!selectedOption && !isReviewMode) {
+                showModal("Silakan pilih jawaban terlebih dahulu.");
+                return;
+            }
+
+            const userAnswer = selectedOption ? selectedOption.value : null;
+            userAnswers[currentQuestionData.id] = userAnswer;
+
+            document.querySelectorAll(`#question-${currentQuestionData.id} .word-translation, #question-${currentQuestionData.id} .option-translation`).forEach(span => {
+                span.classList.add('revealed-translation');
+            });
+
+            const correctAnswerValue = currentQuestionData.correctAnswer;
+            const selectedLabel = selectedOption ? document.querySelector(`label[for="${currentQuestionData.id}o${userAnswer}"]`) : null;
+            const correctLabel = document.querySelector(`label[for="${currentQuestionData.id}o${correctAnswerValue}"]`);
+
+            document.querySelectorAll(`#question-${currentQuestionData.id} .correct-feedback, #question-${currentQuestionData.id} .incorrect-feedback`).forEach(el => {
+                el.classList.remove('correct-feedback', 'incorrect-feedback');
+            });
+
+            if (userAnswer === correctAnswerValue) {
+                if (selectedLabel) selectedLabel.classList.add('correct-feedback');
+            } else {
+                if (selectedLabel) selectedLabel.classList.add('incorrect-feedback');
+                if (correctLabel) correctLabel.classList.add('correct-feedback');
+            }
+
+            if (!isReviewMode) {
+                answerBtn.style.display = 'none';
+                if (currentQuestionIndex < activeQuizData.length - 1) {
+                    nextBtn.style.display = 'inline-block';
+                } else {
+                    submitBtn.style.display = 'inline-block';
+                }
+            }
+        }
+
+        /**
+         * Moves to the next question.
+         */
+        function nextQuestion() {
+            const currentQuestionData = activeQuizData[currentQuestionIndex];
+            document.querySelectorAll(`#question-${currentQuestionData.id} .revealed-translation`).forEach(span => {
+                span.classList.remove('revealed-translation');
+            });
+            document.querySelectorAll(`#question-${currentQuestionData.id} .correct-feedback, #question-${currentQuestionData.id} .incorrect-feedback`).forEach(el => {
+                el.classList.remove('correct-feedback', 'incorrect-feedback');
+            });
+
+            if (currentQuestionIndex < activeQuizData.length - 1) {
+                currentQuestionIndex++;
+                showQuestion(currentQuestionIndex);
+            }
+        }
+
+        /**
+         * Submits the quiz, calculates the score, and displays results.
+         */
+        function submitQuiz() {
+            const lastQuestionData = activeQuizData[currentQuestionIndex];
+            const selectedOption = document.querySelector(`input[name="${lastQuestionData.id}"]:checked`);
+
+            if (!selectedOption) {
+                showModal("Silakan pilih jawaban terlebih dahulu.");
+                return;
+            }
+
+            answerQuestion();
+
+            setTimeout(() => {
+                let score = 0;
+                answersReview.innerHTML = '';
+                const incorrectQuestions = [];
+
+                activeQuizData.forEach((qData, index) => {
+                    const userAnswer = userAnswers[qData.id];
+                    const correctAnswer = qData.correctAnswer;
+
+                    if (userAnswer !== correctAnswer) {
+                        incorrectQuestions.push(qData);
+                        updateFrequentlyMissed(qData.id);
+                    } else {
+                        score++;
+                    }
+
+                    const questionReviewDiv = document.createElement('div');
+                    questionReviewDiv.classList.add('p-3', 'rounded-md', 'border');
+
+                    const questionTitle = document.createElement('p');
+                    questionTitle.classList.add('font-semibold', 'mb-2', 'text-lg');
+                    const cleanQuestionText = qData.question.replace(/^\d+\.\s*/, '');
+                    questionTitle.textContent = `Soal ${index + 1}: ${cleanQuestionText}`;
+                    questionReviewDiv.appendChild(questionTitle);
+
+                    const wordAndTranslation = document.createElement('p');
+                    wordAndTranslation.classList.add('text-base', 'font-medium', 'mb-1');
+                    if (qData.words && Array.isArray(qData.words)) {
+                        const wordsText = qData.words.map((word, i) => `${word} (${qData.words_translation[i]})`).join(', ');
+                        wordAndTranslation.innerHTML = `Kata-kata: <span class="font-bold">${wordsText}</span>`;
+                    } else if (qData.word) {
+                        wordAndTranslation.innerHTML = `Kata: <span class="font-bold">${qData.word}</span> (${qData.word_translation})`;
+                    }
+                    questionReviewDiv.appendChild(wordAndTranslation);
+
+                    const correctAnswerText = document.createElement('p');
+                    correctAnswerText.classList.add('text-base', 'font-medium');
+                    const correctOption = qData.options.find(opt => opt.value === correctAnswer);
+                    correctAnswerText.innerHTML = `Jawaban Benar: <span class="text-green-700">${correctOption.text} (${correctOption.translation})</span>`;
+                    questionReviewDiv.appendChild(correctAnswerText);
+
+                    if (userAnswer === correctAnswer) {
+                        questionReviewDiv.classList.add('correct-answer');
+                        const userChoiceText = document.createElement('p');
+                        userChoiceText.classList.add('text-base', 'text-green-800');
+                        const userOption = qData.options.find(opt => opt.value === userAnswer);
+                        userChoiceText.textContent = `Pilihan Anda: ${userOption.text} (${userOption.translation})`;
+                        questionReviewDiv.appendChild(userChoiceText);
+                    } else {
+                        questionReviewDiv.classList.add('incorrect-answer');
+                        const userChoiceText = document.createElement('p');
+                        userChoiceText.classList.add('text-base', 'text-red-800');
+                        const userOption = userAnswer ? qData.options.find(opt => opt.value === userAnswer) : null;
+                        userChoiceText.textContent = `Pilihan Anda: ${userOption ? `${userOption.text} (${userOption.translation})` : 'Tidak dijawab'}`;
+                        questionReviewDiv.appendChild(userChoiceText);
+                    }
+                    answersReview.appendChild(questionReviewDiv);
+                });
+
+                scoreDisplay.textContent = `Skor Anda: ${score} dari ${activeQuizData.length}`;
+                quizContainer.style.display = 'none';
+                resultsSection.style.display = 'block';
+
+                if (incorrectQuestions.length > 0) {
+                    repeatIncorrectBtn.style.display = 'inline-block';
+                    sessionStorage.setItem('incorrectQuestions', JSON.stringify(incorrectQuestions));
+                } else {
+                    repeatIncorrectBtn.style.display = 'none';
+                    sessionStorage.removeItem('incorrectQuestions');
+                }
+                
+                renderFrequentlyMissedList();
+            }, 1000);
+        }
+
+        /**
+         * Resets the quiz and returns to the initial screen.
+         */
+        function restartQuizAll() {
+            currentQuestionIndex = 0;
+            document.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
+            for (const key in userAnswers) {
+                delete userAnswers[key];
+            }
+            sessionStorage.removeItem('incorrectQuestions');
+
+            initialScreen.style.display = 'flex';
+            quizContainer.style.display = 'none';
+            resultsSection.style.display = 'none';
+            
+            // Re-show necessary elements for a new import
+            packageSelectionSection.style.display = 'block';
+            quizConfigSection.style.display = 'none';
+        }
+
+        /**
+         * Starts a new quiz session with only the incorrect questions from the current session.
+         */
+        function repeatIncorrectQuestions() {
+            const storedIncorrectQuestions = sessionStorage.getItem('incorrectQuestions');
+            if (storedIncorrectQuestions) {
+                activeQuizData = JSON.parse(storedIncorrectQuestions);
+                shuffleArray(activeQuizData);
+                currentQuestionIndex = 0;
+                for (const key in userAnswers) {
+                    delete userAnswers[key];
+                }
+
+                resultsSection.style.display = 'none';
+                quizContainer.style.display = 'block';
+                renderQuestions();
+                questions = document.querySelectorAll('.question-container');
+                showQuestion(currentQuestionIndex);
+            } else {
+                showModal("Tidak ada soal yang salah untuk diulang.");
+            }
+        }
+
+        /**
+         * Starts a new quiz session with the frequently missed questions from localStorage.
+         */
+        function repeatFrequentlyMissed() {
+            const storageKey = `frequentlyMissed_${currentPackageName}`;
+            const frequentlyMissed = JSON.parse(localStorage.getItem(storageKey)) || {};
+            const missedQuestionsArray = Object.keys(frequentlyMissed)
+                .sort((a, b) => frequentlyMissed[b] - frequentlyMissed[a]);
+
+            if (missedQuestionsArray.length > 0) {
+                activeQuizData = missedQuestionsArray.map(id => fullQuizData.find(q => q.id === id)).filter(q => q);
+                
+                shuffleArray(activeQuizData);
+                currentQuestionIndex = 0;
+                for (const key in userAnswers) {
+                    delete userAnswers[key];
+                }
+                
+                resultsSection.style.display = 'none';
+                quizContainer.style.display = 'block';
+                renderQuestions();
+                questions = document.querySelectorAll('.question-container');
+                showQuestion(currentQuestionIndex);
+            } else {
+                showModal("Tidak ada soal yang sering salah yang tercatat untuk paket ini.");
+            }
+        }
+
+        /**
+         * Renders the package selection buttons after a ZIP file is loaded.
+         */
+        function renderPackageList() {
+            packageList.innerHTML = '';
+            const packageNames = Object.keys(quizPackages);
+            if (packageNames.length > 0) {
+                packageSelectionSection.style.display = 'block';
+                packageNames.forEach(packageName => {
+                    const packageButton = document.createElement('button');
+                    packageButton.textContent = `${packageName} (${quizPackages[packageName].length} soal)`;
+                    packageButton.classList.add('w-full', 'py-3', 'px-6', 'rounded-lg', 'shadow-md', 'transition', 'duration-300', 'ease-in-out', 'text-lg', 'font-semibold', 'bg-gray-200', 'hover:bg-gray-300', 'focus:bg-blue-400');
+                    packageButton.addEventListener('click', () => selectPackage(packageName));
+                    packageList.appendChild(packageButton);
+                });
+            } else {
+                packageSelectionSection.style.display = 'none';
+            }
+        }
+
+        /**
+         * Handles the selection of a specific quiz package.
+         * @param {string} packageName - The name of the selected package.
+         */
+        function selectPackage(packageName) {
+            // Update the UI to highlight the selected button
+            document.querySelectorAll('#package-list button').forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'hover:bg-gray-300');
+            });
+            const selectedButton = document.querySelector(`#package-list button:nth-child(${Object.keys(quizPackages).indexOf(packageName) + 1})`);
+            if (selectedButton) {
+                selectedButton.classList.remove('bg-gray-200', 'hover:bg-gray-300');
+                selectedButton.classList.add('bg-blue-500', 'text-white');
+            }
+
+            currentPackageName = packageName;
+            fullQuizData = quizPackages[packageName];
+
+            // Show the quiz configuration section for the selected package
+            totalQuestionsInfo.textContent = `Jumlah soal dalam paket ini: ${fullQuizData.length}`;
+            quizConfigSection.style.display = 'block';
+            startRangeInput.value = 1;
+            endRangeInput.value = fullQuizData.length;
+        }
+
+        // Event listeners
+        loadZipBtn.addEventListener('click', () => {
+            const file = zipFileInput.files[0];
+            if (file) {
+                importStatus.textContent = "Memproses file ZIP...";
+                importStatus.style.display = 'block';
+                quizPackages = {}; // Reset packages
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const zip = new JSZip();
+                    zip.loadAsync(e.target.result).then(zipData => {
+                        let jsonCount = 0;
+                        const promises = [];
+                        zipData.forEach((relativePath, file) => {
+                            if (relativePath.endsWith('.json') && !file.dir) {
+                                jsonCount++;
+                                promises.push(file.async("string").then(jsonContent => {
+                                    try {
+                                        const parsedData = JSON.parse(jsonContent);
+                                        const packageName = relativePath.split('/').pop().replace('.json', '');
+                                        quizPackages[packageName] = parsedData;
+                                    } catch (error) {
+                                        console.error(`Error parsing JSON in file ${relativePath}:`, error);
+                                    }
+                                }));
+                            }
+                        });
+
+                        Promise.all(promises).then(() => {
+                            if (jsonCount > 0) {
+                                importStatus.textContent = `${jsonCount} paket soal berhasil dimuat.`;
+                                renderPackageList();
+                            } else {
+                                importStatus.textContent = "File ZIP tidak mengandung file JSON.";
+                            }
+                        }).catch(error => {
+                            importStatus.textContent = `Error: ${error.message}`;
+                            console.error("Error processing files in ZIP:", error);
+                        });
+                    }).catch(error => {
+                        importStatus.textContent = `Error: ${error.message}. Pastikan file adalah ZIP yang valid.`;
+                        console.error("Error loading ZIP:", error);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                showModal("Silakan pilih file ZIP terlebih dahulu.");
+            }
+        });
+
+        startQuizBtn.addEventListener('click', () => {
+            if (!currentPackageName) {
+                showModal("Silakan pilih paket soal terlebih dahulu.");
+                return;
+            }
+            const start = parseInt(startRangeInput.value);
+            const end = parseInt(endRangeInput.value);
+
+            if (isNaN(start) || isNaN(end) || start < 1 || end > fullQuizData.length || start > end) {
+                showModal(`Rentang soal tidak valid. Masukkan angka antara 1 dan ${fullQuizData.length}.`);
+                return;
+            }
+
+            activeQuizData = fullQuizData.slice(start - 1, end);
+            shuffleArray(activeQuizData);
+
+            initialScreen.style.display = 'none';
+            quizContainer.style.display = 'block';
+            renderQuestions();
+            questions = document.querySelectorAll('.question-container');
+            currentQuestionIndex = 0;
+            showQuestion(currentQuestionIndex);
+        });
+
+        answerBtn.addEventListener('click', () => answerQuestion());
+        nextBtn.addEventListener('click', nextQuestion);
+        submitBtn.addEventListener('click', submitQuiz);
+        repeatIncorrectBtn.addEventListener('click', repeatIncorrectQuestions);
+        backToHomeBtn.addEventListener('click', restartQuizAll);
+        restartAllBtn.addEventListener('click', restartQuizAll);
+        modalCloseBtn.addEventListener('click', hideModal);
+        repeatFrequentlyMissedBtn.addEventListener('click', repeatFrequentlyMissed);
+
+        window.onload = function() {
+            initialScreen.style.display = 'flex';
+            quizContainer.style.display = 'none';
+            resultsSection.style.display = 'none';
+            packageSelectionSection.style.display = 'none';
+            quizConfigSection.style.display = 'none';
+        };
+    </script>
+</body>
+</html>
